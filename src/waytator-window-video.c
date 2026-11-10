@@ -1033,7 +1033,7 @@ waytator_video_profiles_reset(GtkButton *button,
 static void
 waytator_video_profiles_page_rebuild(WaytatorVideoProfilesPage *page)
 {
-  static const char *const codecs[] = { "MP4, H.264", "MP4, HEVC", "MP4, AV1", "WebM, VP9", "GIF", NULL };
+  static const char *const codecs[] = { "MP4, H.264", "MP4, HEVC", "MP4, AV1", "WebM, VP9", "GIF", "AVIF, AV1 (animated)", NULL };
   static const char *const encoders[] = { "Automatic", "Graphics card", "Processor", NULL };
   static const char *const sizes[] = { "Original", "2160p", "1440p", "1080p", "720p", "540p", "480p", "360p", NULL };
   static const char *const rates[] = { "Original", "60 fps", "50 fps", "30 fps", "25 fps", "24 fps", "15 fps", "10 fps", NULL };

@@ -10,6 +10,7 @@ typedef enum {
   WAYTATOR_VIDEO_CODEC_AV1,
   WAYTATOR_VIDEO_CODEC_VP9,
   WAYTATOR_VIDEO_CODEC_GIF,
+  WAYTATOR_VIDEO_CODEC_AVIF,
 } WaytatorVideoCodec;
 
 typedef enum {
@@ -25,7 +26,7 @@ typedef enum {
   WAYTATOR_VIDEO_SOUND_NONE,
 } WaytatorVideoSound;
 
-//how a video is saved: the format, how big and how good. a GIF ignores the sound
+//how a video is saved: the format, how big and how good. GIF and AVIF ignore the sound
 typedef struct {
   //stays the same when the name is changed, it names the profile's group in the settings
   char *id;

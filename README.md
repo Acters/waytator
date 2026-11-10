@@ -142,6 +142,8 @@ Available functions: cropping, trimming, rotation, horizontal and vertical flipp
 
 Copy puts the video on the clipboard as a file and only exports again once the edit or its profile changes. **Copied videos are temporary:** they are kept in `~/.cache/waytator/copies` and deleted about a week after they were last copied. Use Export to keep a video.
 
+For animated AVIF export, add or edit an export profile in Preferences → Videos and choose **AVIF, AV1 (animated)**. Like GIF, AVIF exports have no sound. This uses FFmpeg's AVIF muxer and an available AV1 encoder, through the existing 8-bit video pipeline without transparency.
+
 There's a timeline track for 'objects', it isn't used yet, but it will be in the future for video annotations.
 
 ### Taking screenshots

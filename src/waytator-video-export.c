@@ -302,7 +302,8 @@ waytator_export_plan(WaytatorExporter *exporter,
       double rate;
     } steps[] = { { 0, 0 }, { 720, 0 }, { 540, 0 }, { 540, 24 }, { 480, 24 }, { 480, 15 }, { 360, 15 } };
     const double seconds = MAX((double) plan->duration / WAYTATOR_VIDEO_SECOND, 0.1);
-    const double sound = profile->sound != WAYTATOR_VIDEO_SOUND_NONE && waytator_video_state_has_audio(exporter->state)
+    const double sound = profile->codec != WAYTATOR_VIDEO_CODEC_AVIF
+                       && profile->sound != WAYTATOR_VIDEO_SOUND_NONE && waytator_video_state_has_audio(exporter->state)
                        ? profile->sound_bitrate * 1000.0
                        : 0.0;
     const double bits = profile->size_limit * 1000.0 * 1000.0 * 8.0 * WAYTATOR_EXPORT_SIZE_MARGIN;
@@ -592,8 +593,9 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
     if (plan->two_pass) {
       encoder->flags |= pass == WAYTATOR_EXPORT_PASS_LEARN ? AV_CODEC_FLAG_PASS1 : AV_CODEC_FLAG_PASS2;
       av_opt_set(encoder->priv_data, "stats", exporter->stats_path, 0);
-    } else {
-      //one pass can overshoot, so it is held under the rate it aims for
+    } else if (!g_str_equal(codec->name, "libsvtav1")) {
+      //SVT-AV1 needs VBR here: a matching max rate selects unsupported random-access CBR
+      //one pass can overshoot, so the other encoders are held under the rate they aim for
       encoder->rc_max_rate = plan->video_bitrate;
       encoder->rc_buffer_size = (int) MIN(plan->video_bitrate * 2, G_MAXINT);
       if (plan->hardware_encode)
@@ -664,6 +666,7 @@ waytator_export_open_audio(WaytatorExporter *exporter,
 
   if (profile->sound == WAYTATOR_VIDEO_SOUND_NONE
       || profile->codec == WAYTATOR_VIDEO_CODEC_GIF
+      || profile->codec == WAYTATOR_VIDEO_CODEC_AVIF
       || !waytator_video_state_has_audio(exporter->state))
     return TRUE;
 
@@ -1020,9 +1023,7 @@ waytator_export_open_muxer(WaytatorExporter *exporter,
                            const char       *path,
                            GError          **error)
 {
-  const char *format = exporter->profile->codec == WAYTATOR_VIDEO_CODEC_GIF
-                     ? "gif"
-                     : exporter->profile->codec == WAYTATOR_VIDEO_CODEC_VP9 ? "webm" : "mp4";
+  const char *format = waytator_video_profile_get_extension(exporter->profile);
   int code;
 
   code = avformat_alloc_output_context2(&exporter->muxer, NULL, format, path);
@@ -1045,9 +1046,10 @@ waytator_export_start_muxer(WaytatorExporter *exporter,
   int code;
 
   //players can start an MP4 before all of it has downloaded
-  if (exporter->profile->codec != WAYTATOR_VIDEO_CODEC_GIF && exporter->profile->codec != WAYTATOR_VIDEO_CODEC_VP9)
+  if (g_str_equal(waytator_video_profile_get_extension(exporter->profile), "mp4"))
     av_dict_set(&options, "movflags", "+faststart", 0);
-  if (exporter->profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
+  if (exporter->profile->codec == WAYTATOR_VIDEO_CODEC_GIF
+      || exporter->profile->codec == WAYTATOR_VIDEO_CODEC_AVIF)
     av_dict_set(&options, "loop", "0", 0);
 
   code = avformat_write_header(exporter->muxer, &options);

@@ -4,7 +4,7 @@
 
 #define WAYTATOR_VIDEO_PROFILE_GROUP_PREFIX "video-profile "
 
-static const char *const waytator_video_codec_names[] = { "h264", "hevc", "av1", "vp9", "gif" };
+static const char *const waytator_video_codec_names[] = { "h264", "hevc", "av1", "vp9", "gif", "avif" };
 static const char *const waytator_video_encoder_names[] = { "auto", "hardware", "software" };
 static const char *const waytator_video_sound_names[] = { "aac", "opus", "none" };
 
@@ -49,6 +49,8 @@ waytator_video_profile_get_extension(const WaytatorVideoProfile *profile)
   switch (profile->codec) {
   case WAYTATOR_VIDEO_CODEC_GIF:
     return "gif";
+  case WAYTATOR_VIDEO_CODEC_AVIF:
+    return "avif";
   case WAYTATOR_VIDEO_CODEC_VP9:
     return "webm";
   default:
@@ -59,7 +61,7 @@ waytator_video_profile_get_extension(const WaytatorVideoProfile *profile)
 char *
 waytator_video_profile_describe(const WaytatorVideoProfile *profile)
 {
-  static const char *const codecs[] = { "H.264", "HEVC", "AV1", "VP9", "GIF" };
+  static const char *const codecs[] = { "H.264", "HEVC", "AV1", "VP9", "GIF", "AV1" };
   g_autoptr(GString) text = g_string_new(NULL);
   g_autofree char *extension = g_ascii_strup(waytator_video_profile_get_extension(profile), -1);
 

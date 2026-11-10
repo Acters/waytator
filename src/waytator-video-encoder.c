@@ -82,6 +82,7 @@ waytator_video_encoder_names(WaytatorVideoCodec codec,
   case WAYTATOR_VIDEO_CODEC_HEVC:
     return hardware ? hevc_hardware : hevc_software;
   case WAYTATOR_VIDEO_CODEC_AV1:
+  case WAYTATOR_VIDEO_CODEC_AVIF:
     return hardware ? av1_hardware : av1_software;
   case WAYTATOR_VIDEO_CODEC_VP9:
     return hardware ? vp9_hardware : vp9_software;

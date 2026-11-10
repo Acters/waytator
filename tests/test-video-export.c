@@ -561,6 +561,107 @@ test_gif(void)
   g_unlink(input);
 }
 
+static void
+test_avif(gconstpointer data)
+{
+  g_autofree char *input = NULL;
+  g_autoptr(GError) error = NULL;
+  g_autoptr(WaytatorVideoSource) source = NULL;
+  g_autoptr(WaytatorVideoEdit) edit = NULL;
+  g_autoptr(WaytatorVideoState) state = NULL;
+  g_autoptr(WaytatorVideoProfile) profile = test_profile();
+  g_autofree char *output = NULL;
+  AVFormatContext *demuxer = NULL;
+  AVCodecContext *decoder;
+  AVPacket *packet;
+  AVFrame *frame;
+  AVFrame *rgb;
+  int count = 0;
+  int index;
+  double picture = 0;
+  double heard = 0;
+  int width = 0;
+  int height = 0;
+  double rate = 0;
+
+  if (av_guess_format("avif", NULL, NULL) == NULL
+      || (avcodec_find_encoder_by_name("libsvtav1") == NULL
+          && avcodec_find_encoder_by_name("libaom-av1") == NULL
+          && avcodec_find_encoder_by_name("librav1e") == NULL)
+      || avcodec_find_decoder(AV_CODEC_ID_AV1) == NULL) {
+    g_test_skip("Needs FFmpeg with an AVIF muxer and an AV1 encoder and decoder");
+    return;
+  }
+
+  input = make_video_with(0, TRUE);
+  source = waytator_video_source_open(input, NULL, &error);
+  g_assert_no_error(error);
+  edit = waytator_video_edit_new(waytator_video_source_get_frames(source), WIDTH, HEIGHT, TRUE);
+  state = waytator_video_edit_get_state(edit);
+  profile->codec = WAYTATOR_VIDEO_CODEC_AVIF;
+  profile->encoder = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
+  profile->max_size = 120;
+  profile->max_rate = 10;
+  //sound settings must be ignored, including when budgeting for a size limit
+  profile->sound = WAYTATOR_VIDEO_SOUND_AAC;
+  profile->sound_bitrate = 320;
+  if (GPOINTER_TO_INT(data))
+    profile->size_limit = 0.02;
+
+  g_assert_true(export_to(source, state, profile, "avif", &output));
+  if (profile->size_limit > 0) {
+    GStatBuf info;
+
+    g_assert_cmpint(g_stat(output, &info), ==, 0);
+    g_assert_cmpint(info.st_size, <=, (gint64) (profile->size_limit * 1000 * 1000));
+  }
+  probe(output, &picture, &heard, &width, &height, &rate);
+  g_assert_cmpint(width, ==, 160);
+  g_assert_cmpint(height, ==, 120);
+  g_assert_cmpfloat(heard, <, 0);
+  g_assert_cmpfloat(fabs(picture - N_FRAMES / 30.0), <, 0.05);
+  g_assert_cmpfloat(fabs(rate - 10), <, 0.01);
+
+  //check the container as well as the codec: an MP4 of AV1 is not an animated AVIF
+  g_assert_cmpint(avformat_open_input(&demuxer, output, NULL, NULL), >=, 0);
+  g_assert_cmpint(avformat_find_stream_info(demuxer, NULL), >=, 0);
+  g_assert_nonnull(av_dict_get(demuxer->metadata, "major_brand", NULL, 0));
+  g_assert_cmpstr(av_dict_get(demuxer->metadata, "major_brand", NULL, 0)->value, ==, "avis");
+  //newer FFmpeg also exposes the primary still image as an attached picture
+  index = av_find_best_stream(demuxer, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+  g_assert_cmpint(index, >=, 0);
+  g_assert_cmpint(demuxer->streams[index]->codecpar->codec_id, ==, AV_CODEC_ID_AV1);
+  g_assert_cmpint(demuxer->streams[index]->disposition & AV_DISPOSITION_ATTACHED_PIC, ==, 0);
+  decoder = avcodec_alloc_context3(avcodec_find_decoder(AV_CODEC_ID_AV1));
+  g_assert_cmpint(avcodec_parameters_to_context(decoder, demuxer->streams[index]->codecpar), >=, 0);
+  g_assert_cmpint(avcodec_open2(decoder, decoder->codec, NULL), >=, 0);
+  packet = av_packet_alloc();
+  frame = av_frame_alloc();
+  while (av_read_frame(demuxer, packet) >= 0) {
+    if (packet->stream_index == index) {
+      g_assert_cmpint(avcodec_send_packet(decoder, packet), >=, 0);
+      while (avcodec_receive_frame(decoder, frame) >= 0)
+        count++;
+    }
+    av_packet_unref(packet);
+  }
+  g_assert_cmpint(avcodec_send_packet(decoder, NULL), >=, 0);
+  while (avcodec_receive_frame(decoder, frame) >= 0)
+    count++;
+  g_assert_cmpint(count, ==, 10);
+  av_frame_free(&frame);
+  av_packet_free(&packet);
+  avcodec_free_context(&decoder);
+  avformat_close_input(&demuxer);
+
+  rgb = read_first_frame(output);
+  for (int corner = 0; corner < 4; corner++)
+    g_assert_cmpint(quarter_at(rgb, corner), ==, corner);
+  av_frame_free(&rgb);
+  g_unlink(output);
+  g_unlink(input);
+}
+
 //the mode an export lands with, written to path in place of replaces
 static int
 export_mode(WaytatorVideoSource        *source,
@@ -637,6 +738,8 @@ main(int   argc,
   g_test_add_data_func("/video-export/sound/opus", GINT_TO_POINTER(WAYTATOR_VIDEO_SOUND_OPUS), test_sound);
   g_test_add_func("/video-export/size-limit", test_size_limit);
   g_test_add_func("/video-export/gif", test_gif);
+  g_test_add_data_func("/video-export/avif/quality", GINT_TO_POINTER(FALSE), test_avif);
+  g_test_add_data_func("/video-export/avif/size-limit", GINT_TO_POINTER(TRUE), test_avif);
   g_test_add_func("/video-export/permissions", test_permissions);
 
   return g_test_run();
